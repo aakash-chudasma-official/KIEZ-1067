@@ -343,7 +343,7 @@ export default function AdminApp() {
   if (!session) return <Login onLogin={setSession}/>;
 
   return <div className="admin-shell">
-    <header className="admin-header"><a className="admin-brand" href="./"><b>LOCAL</b><span>LOOP</span><small>Directory Admin</small></a><div><span>{session.user.email}</span><button onClick={() => supabase.auth.signOut()}><LogOut/> Sign out</button></div></header>
+    <header className="admin-header"><a className="admin-brand" href="./"><b>KIEZ-LP </b><span>106.7 FM</span><small>Directory Admin</small></a><div><span>{session.user.email}</span><button onClick={() => supabase.auth.signOut()}><LogOut/> Sign out</button></div></header>
     <nav className="admin-tabs"><button className={tab === 'businesses' ? 'active' : ''} onClick={() => setTab('businesses')}><BriefcaseBusiness/> Businesses</button><button className={tab === 'requests' ? 'active' : ''} onClick={() => setTab('requests')}><Inbox/> Listing requests</button><button className={tab === 'branding' ? 'active' : ''} onClick={() => setTab('branding')}><Palette/> Branding</button></nav>
     <main className="admin-main">{content}</main>
   </div>;
