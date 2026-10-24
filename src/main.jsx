@@ -17,7 +17,7 @@ const categoryIcons = {
 };
 const fallbackImage = 'https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1200&q=85';
 const defaultSettings = {
-  site_name: 'LOCAL LOOP', brand_subtitle: '106.7 FM · Community Directory', logo_url: '',
+  site_name: 'KIEZ-LP 106.7 FM', brand_subtitle: '106.7 FM · Community Directory', logo_url: '',
   hero_title: 'Discover Local. Support Local.',
   hero_description: 'Find businesses, services, restaurants and community resources serving Monroe and the surrounding community.',
   hero_badge: 'Stronger Together', location: 'Monroe, LA',
