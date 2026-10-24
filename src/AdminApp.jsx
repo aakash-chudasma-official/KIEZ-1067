@@ -12,7 +12,7 @@ const emptyBusiness = {
 };
 
 const defaultSettings = {
-  id: 1, site_name: 'LOCAL LOOP', brand_subtitle: '106.7 FM · Community Directory', logo_url: '',
+  id: 1, site_name: 'KIEZ-LP 106.7 FM', brand_subtitle: '106.7 FM · Community Directory', logo_url: '',
   hero_title: 'Discover Local. Support Local.',
   hero_description: 'Find businesses, services, restaurants and community resources serving Monroe and the surrounding community.',
   hero_badge: 'Stronger Together', location: 'Monroe, LA',
@@ -55,7 +55,7 @@ function Login({ onLogin }) {
     <a className="back-link" href="./"><ArrowLeft/> Back to directory</a>
     <section className="admin-login">
       <span className="admin-mark"><BriefcaseBusiness/></span>
-      <p className="eyebrow">LOCAL LOOP</p><h1>Directory Admin</h1>
+      <p className="eyebrow">KIEZ-LP 106.7 FM</p><h1>Directory Admin</h1>
       <p>Sign in with the admin account you created in Supabase.</p>
       <form onSubmit={submit}>
         <label>Email address<input type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="email"/></label>
