@@ -7,7 +7,7 @@ import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 const emptyBusiness = {
   id: '', name: '', category_id: '', tagline: '', description: '', address: '',
-  city: 'Monroe', state: 'LA', phone: '', website: '', services: '', close_time: '',
+  city: 'Monroe', state: 'LA', phone: '', website: '', services: '', open_time: '', close_time: '',
   image_url: '', is_featured: false, is_local_presence: false, status: 'pending'
 };
 
@@ -23,6 +23,22 @@ const defaultSettings = {
 
 function cleanText(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeTimeInput(value) {
+  const time = cleanText(value).toUpperCase();
+  if (!time) return '';
+  const match = time.match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/);
+  if (!match) return '';
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (minute > 59) return '';
+  if (match[3]) {
+    if (hour < 1 || hour > 12) return '';
+    if (match[3] === 'AM') hour = hour === 12 ? 0 : hour;
+    if (match[3] === 'PM') hour = hour === 12 ? 12 : hour + 12;
+  } else if (hour > 23) return '';
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 function slugify(value) {
@@ -45,6 +61,9 @@ function friendlySaveError(error) {
   }
   if (message.includes('business name') || message.includes('name is required')) {
     return 'Please enter the business name before saving.';
+  }
+  if (message.includes('opening and closing')) {
+    return 'Please enter both the opening time and closing time.';
   }
   return 'We could not save this business. Please check the details and try again.';
 }
@@ -145,7 +164,8 @@ function BusinessForm({ categories, editing, onSaved, onCancel }) {
       services: Array.isArray(editing.services)
         ? editing.services.join(', ')
         : (editing.services ?? ''),
-      close_time: editing.opening_hours?.close ?? '',
+      open_time: normalizeTimeInput(editing.opening_hours?.open),
+      close_time: normalizeTimeInput(editing.opening_hours?.close),
       image_url: editing.image_url ?? ''
     } : { ...emptyBusiness, category_id: categories[0]?.id || '' });
     setImage(null); setError('');
@@ -171,10 +191,14 @@ function BusinessForm({ categories, editing, onSaved, onCancel }) {
       const imageUrl = await uploadImage();
       const businessName = cleanText(form.name);
       const categoryId = Number(form.category_id);
-      const closeTime = cleanText(form.close_time);
+      const openTime = normalizeTimeInput(form.open_time);
+      const closeTime = normalizeTimeInput(form.close_time);
 
       if (!businessName) throw new Error('Business name is required.');
       if (!Number.isFinite(categoryId)) throw new Error('Category is required.');
+      if ((openTime && !closeTime) || (!openTime && closeTime)) {
+        throw new Error('Both opening and closing times are required.');
+      }
 
       const payload = {
         name: businessName,
@@ -189,7 +213,7 @@ function BusinessForm({ categories, editing, onSaved, onCancel }) {
         website: cleanText(form.website) || null,
         image_url: imageUrl,
         services: cleanText(form.services).split(',').map(value => value.trim()).filter(Boolean),
-        opening_hours: closeTime ? { close: closeTime } : {},
+        opening_hours: openTime && closeTime ? { open: openTime, close: closeTime } : {},
         is_featured: Boolean(form.is_featured),
         is_local_presence: Boolean(form.is_local_presence),
         status: form.status || 'pending'
@@ -221,7 +245,8 @@ function BusinessForm({ categories, editing, onSaved, onCancel }) {
       <label>Phone<input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}/></label>
       <label>Website<input type="url" placeholder="https://..." value={form.website} onChange={e => set('website', e.target.value)}/></label>
       <label className="wide">Services <small>(separate with commas)</small><input value={form.services} onChange={e => set('services', e.target.value)}/></label>
-      <label>Closing time<input placeholder="7:00 PM" value={form.close_time} onChange={e => set('close_time', e.target.value)}/></label>
+      <label>Opening time<input type="time" value={form.open_time} onChange={e => set('open_time', e.target.value)}/></label>
+      <label>Closing time<input type="time" value={form.close_time} onChange={e => set('close_time', e.target.value)}/></label>
       <label className="upload-label"><ImageUp/> Business image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => setImage(e.target.files?.[0] || null)}/><span>{image?.name || (form.image_url ? 'Current image saved' : 'Choose an image')}</span></label>
     </div>
     <div className="check-row"><label><input type="checkbox" checked={form.is_featured} onChange={e => set('is_featured', e.target.checked)}/> Featured business</label><label><input type="checkbox" checked={form.is_local_presence} onChange={e => set('is_local_presence', e.target.checked)}/> Local presence</label></div>
