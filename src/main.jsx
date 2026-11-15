@@ -33,7 +33,8 @@ function mapBusiness(row) {
     categorySlug: row.categories?.slug || '',
     image: row.image_url || fallbackImage,
     address: [row.address, row.city, row.state].filter(Boolean).join(', ') || 'Monroe, LA',
-    close: row.opening_hours?.close || 'today',
+    open: row.opening_hours?.open || '',
+    close: row.opening_hours?.close || '',
     services: row.services || []
   };
 }
@@ -94,8 +95,64 @@ function SectionTitle({ children, note }) {
   return <div className="section-title"><div><h2>{children}</h2>{note && <p>{note}</p>}</div></div>;
 }
 
-function StatusLine({ close }) {
-  return <div className="status"><span></span><strong>Open now</strong><i>·</i><span className="closes">Closes {close}</span></div>;
+const BUSINESS_TIME_ZONE = 'America/Chicago';
+
+function parseBusinessTime(value) {
+  const time = String(value || '').trim().toUpperCase();
+  const match = time.match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/);
+  if (!match) return null;
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (minute > 59) return null;
+  if (match[3]) {
+    if (hour < 1 || hour > 12) return null;
+    if (match[3] === 'AM') hour = hour === 12 ? 0 : hour;
+    if (match[3] === 'PM') hour = hour === 12 ? 12 : hour + 12;
+  } else if (hour > 23) return null;
+  return hour * 60 + minute;
+}
+
+function formatBusinessTime(value) {
+  const minutes = parseBusinessTime(value);
+  if (minutes === null) return '';
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`;
+}
+
+function getBusinessMinutes(date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BUSINESS_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(date);
+  const hour = Number(parts.find(part => part.type === 'hour')?.value || 0);
+  const minute = Number(parts.find(part => part.type === 'minute')?.value || 0);
+  return hour * 60 + minute;
+}
+
+function StatusLine({ open, close, now }) {
+  const openMinutes = parseBusinessTime(open);
+  const closeMinutes = parseBusinessTime(close);
+  const formattedOpen = formatBusinessTime(open);
+  const formattedClose = formatBusinessTime(close);
+
+  if (openMinutes === null || closeMinutes === null) {
+    return <div className="status hours-only"><span></span><strong>Hours not available</strong></div>;
+  }
+
+  const currentMinutes = getBusinessMinutes(now);
+  const isOpen = openMinutes === closeMinutes
+    || (openMinutes < closeMinutes
+      ? currentMinutes >= openMinutes && currentMinutes < closeMinutes
+      : currentMinutes >= openMinutes || currentMinutes < closeMinutes);
+
+  return <div className={`status ${isOpen ? 'open' : 'closed'}`}>
+    <span></span><strong>{isOpen ? 'Open now' : 'Closed'}</strong><i>·</i>
+    <span className="closes">{isOpen ? `Closes ${formattedClose}` : `Opens ${formattedOpen}`}</span>
+  </div>;
 }
 
 function safeWebsite(value) {
@@ -103,18 +160,18 @@ function safeWebsite(value) {
   return /^https?:\/\//i.test(value) ? value : `https://${value}`;
 }
 
-function FeaturedCard({ item, onView }) {
-  return <article className="featured-card"><div className="featured-image" style={{ backgroundImage: `url(${item.image})` }}><span className="featured-label"><Star size={14} fill="currentColor"/> Featured partner</span></div><div className="card-body"><span className="tag">{item.category}</span><h3>{item.name}</h3>{item.tagline && <p className="tagline">{item.tagline}</p>}<p>{item.description || 'A trusted local business serving our community.'}</p>{item.services.length > 0 && <div className="service-row">{item.services.slice(0, 3).map((service, index) => <span key={service}>{index === 0 ? <CheckCircle2/> : index === 1 ? <Wrench/> : <BriefcaseBusiness/>}{service}</span>)}</div>}<div className="detail"><MapPin/> {item.address}</div><StatusLine close={item.close}/><div className="card-actions"><button className="primary" onClick={() => onView(item)}>View profile</button>{item.phone && <a href={`tel:${item.phone}`}><Phone/> Call</a>}<a href={`https://maps.google.com/?q=${encodeURIComponent(item.address)}`} target="_blank" rel="noreferrer">Directions</a></div></div></article>;
+function FeaturedCard({ item, onView, now }) {
+  return <article className="featured-card"><div className="featured-image" style={{ backgroundImage: `url(${item.image})` }}><span className="featured-label"><Star size={14} fill="currentColor"/> Featured partner</span></div><div className="card-body"><span className="tag">{item.category}</span><h3>{item.name}</h3>{item.tagline && <p className="tagline">{item.tagline}</p>}<p>{item.description || 'A trusted local business serving our community.'}</p>{item.services.length > 0 && <div className="service-row">{item.services.slice(0, 3).map((service, index) => <span key={service}>{index === 0 ? <CheckCircle2/> : index === 1 ? <Wrench/> : <BriefcaseBusiness/>}{service}</span>)}</div>}<div className="detail"><MapPin/> {item.address}</div><StatusLine open={item.open} close={item.close} now={now}/><div className="card-actions"><button className="primary" onClick={() => onView(item)}>View profile</button>{item.phone && <a href={`tel:${item.phone}`}><Phone/> Call</a>}<a href={`https://maps.google.com/?q=${encodeURIComponent(item.address)}`} target="_blank" rel="noreferrer">Directions</a></div></div></article>;
 }
 
-function PresenceCard({ item, onView }) {
+function PresenceCard({ item, onView, now }) {
   const Icon = categoryIcons[item.categorySlug] || Dumbbell;
-  return <article className="presence-card"><div className="presence-logo"><Icon/><b>{item.name.split(' ').slice(0, 2).join(' ')}</b></div><div className="presence-content"><span className="tag">{item.category}</span><h3>{item.name}</h3><p>{item.tagline || item.description || 'Proudly serving the Monroe community.'}</p><div className="detail"><MapPin/> {item.address}</div><StatusLine close={item.close}/></div><div className="presence-photo" style={{ backgroundImage: `url(${item.image})` }}></div><div className="presence-actions"><button onClick={() => onView(item)}>View profile</button>{item.phone ? <a href={`tel:${item.phone}`}><Phone/> Call</a> : <span/>}{item.website ? <a href={safeWebsite(item.website)} target="_blank" rel="noreferrer">Website <ArrowUpRight/></a> : <span/>}</div></article>;
+  return <article className="presence-card"><div className="presence-logo"><Icon/><b>{item.name.split(' ').slice(0, 2).join(' ')}</b></div><div className="presence-content"><span className="tag">{item.category}</span><h3>{item.name}</h3><p>{item.tagline || item.description || 'Proudly serving the Monroe community.'}</p><div className="detail"><MapPin/> {item.address}</div><StatusLine open={item.open} close={item.close} now={now}/></div><div className="presence-photo" style={{ backgroundImage: `url(${item.image})` }}></div><div className="presence-actions"><button onClick={() => onView(item)}>View profile</button>{item.phone ? <a href={`tel:${item.phone}`}><Phone/> Call</a> : <span/>}{item.website ? <a href={safeWebsite(item.website)} target="_blank" rel="noreferrer">Website <ArrowUpRight/></a> : <span/>}</div></article>;
 }
 
-function BusinessCard({ item, onView }) {
+function BusinessCard({ item, onView, now }) {
   const Icon = categoryIcons[item.categorySlug] || BriefcaseBusiness;
-  return <article className="business-card"><div className="business-icon"><Icon/></div><div className="business-category">{item.category}</div><h3>{item.name}</h3><div className="detail"><MapPin/> {item.address}</div>{item.phone && <div className="detail"><Phone/> {item.phone}</div>}<StatusLine close={item.close}/><div className="link-row">{item.website && <a href={safeWebsite(item.website)} target="_blank" rel="noreferrer">Website</a>}<button onClick={() => onView(item)}>View details</button></div></article>;
+  return <article className="business-card"><div className="business-icon"><Icon/></div><div className="business-category">{item.category}</div><h3>{item.name}</h3><div className="detail"><MapPin/> {item.address}</div>{item.phone && <div className="detail"><Phone/> {item.phone}</div>}<StatusLine open={item.open} close={item.close} now={now}/><div className="link-row">{item.website && <a href={safeWebsite(item.website)} target="_blank" rel="noreferrer">Website</a>}<button onClick={() => onView(item)}>View details</button></div></article>;
 }
 
 function VisibilityOptions({ onList, settings }) {
@@ -125,7 +182,7 @@ function Footer({ onList, settings }) {
   return <footer><div className="footer-top"><div><h2>{settings.footer_title}</h2><div className="footer-features"><span><Radio/><b>{settings.brand_subtitle}</b><small>On air. In the community.</small></span><span><BookOpen/><b>Digital Magazine</b><small>Stories that inspire.</small></span><span><Users/><b>Local Directory</b><small>Find. Support. Grow.</small></span></div></div><button onClick={onList}>Add Your Business Today <ChevronRight/></button></div><div className="footer-bottom"><Logo settings={settings}/><div className="footer-links"><a href="#top">About</a><a href="#top">Contact</a><a href="#top">Advertise</a><a href="#top">Privacy</a><a href="#/admin">Admin</a></div><div className="social"><a href="#top">f</a><a href="#top">◎</a><a href="#top">▶</a></div></div></footer>;
 }
 
-function Modal({ type, item, categories, onClose }) {
+function Modal({ type, item, categories, onClose, now }) {
   const [form, setForm] = useState({
     business_name: '', owner_name: '', email: '', phone: '', category_id: '',
     address: '', city: 'Monroe', state: 'LA', website: '', message: ''
@@ -150,7 +207,7 @@ function Modal({ type, item, categories, onClose }) {
     if (insertError) return setError(insertError.message);
     setSent(true);
   }
-  return <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}><div className="modal" role="dialog" aria-modal="true"><button className="modal-close" onClick={onClose}><X/></button>{type === 'list' ? <>{sent ? <div className="success"><CheckCircle2/><h2>Thanks! We’ll be in touch.</h2><p>Your listing request has been received and will appear after approval.</p></div> : <><span className="modal-icon"><Megaphone/></span><h2>Put your business on the map.</h2><p>Submit your details for approval in our local business directory.</p><form onSubmit={submit}><label>Business name<input required value={form.business_name} onChange={event => set('business_name', event.target.value)} placeholder="Your business name"/></label><label>Category<select required value={form.category_id} onChange={event => set('category_id', event.target.value)}><option value="">Select a category</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>Business address<input required value={form.address} onChange={event => set('address', event.target.value)} placeholder="Street address"/></label><div className="modal-field-row"><label>City<input required value={form.city} onChange={event => set('city', event.target.value)}/></label><label>State<input required maxLength="2" value={form.state} onChange={event => set('state', event.target.value.toUpperCase())}/></label></div><label>Your name<input required value={form.owner_name} onChange={event => set('owner_name', event.target.value)} placeholder="Full name"/></label><label>Email address<input required type="email" value={form.email} onChange={event => set('email', event.target.value)} placeholder="you@business.com"/></label><label>Phone<input required type="tel" value={form.phone} onChange={event => set('phone', event.target.value)}/></label><label>Website <small>(optional)</small><input type="url" value={form.website} onChange={event => set('website', event.target.value)} placeholder="https://..."/></label><label>Business description <small>(optional)</small><textarea rows="3" value={form.message} onChange={event => set('message', event.target.value)}/></label>{error && <p className="form-error">{error}</p>}<button className="primary" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin"/> : 'Request a listing'}<ChevronRight/></button></form></>}</> : <><span className="modal-icon"><BriefcaseBusiness/></span><span className="tag">{item.category}</span><h2>{item.name}</h2><p>{item.description || 'A trusted local business serving the Monroe community.'}</p><div className="modal-detail"><MapPin/> {item.address}</div>{item.phone && <div className="modal-detail"><Phone/> {item.phone}</div>}<StatusLine close={item.close}/>{item.website && <a className="website-button" href={safeWebsite(item.website)} target="_blank" rel="noreferrer">Visit website <ArrowUpRight/></a>}<button className="primary full" onClick={onClose}>Done</button></>}</div></div>;
+  return <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}><div className="modal" role="dialog" aria-modal="true"><button className="modal-close" onClick={onClose}><X/></button>{type === 'list' ? <>{sent ? <div className="success"><CheckCircle2/><h2>Thanks! We’ll be in touch.</h2><p>Your listing request has been received and will appear after approval.</p></div> : <><span className="modal-icon"><Megaphone/></span><h2>Put your business on the map.</h2><p>Submit your details for approval in our local business directory.</p><form onSubmit={submit}><label>Business name<input required value={form.business_name} onChange={event => set('business_name', event.target.value)} placeholder="Your business name"/></label><label>Category<select required value={form.category_id} onChange={event => set('category_id', event.target.value)}><option value="">Select a category</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>Business address<input required value={form.address} onChange={event => set('address', event.target.value)} placeholder="Street address"/></label><div className="modal-field-row"><label>City<input required value={form.city} onChange={event => set('city', event.target.value)}/></label><label>State<input required maxLength="2" value={form.state} onChange={event => set('state', event.target.value.toUpperCase())}/></label></div><label>Your name<input required value={form.owner_name} onChange={event => set('owner_name', event.target.value)} placeholder="Full name"/></label><label>Email address<input required type="email" value={form.email} onChange={event => set('email', event.target.value)} placeholder="you@business.com"/></label><label>Phone<input required type="tel" value={form.phone} onChange={event => set('phone', event.target.value)}/></label><label>Website <small>(optional)</small><input type="url" value={form.website} onChange={event => set('website', event.target.value)} placeholder="https://..."/></label><label>Business description <small>(optional)</small><textarea rows="3" value={form.message} onChange={event => set('message', event.target.value)}/></label>{error && <p className="form-error">{error}</p>}<button className="primary" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin"/> : 'Request a listing'}<ChevronRight/></button></form></>}</> : <><span className="modal-icon"><BriefcaseBusiness/></span><span className="tag">{item.category}</span><h2>{item.name}</h2><p>{item.description || 'A trusted local business serving the Monroe community.'}</p><div className="modal-detail"><MapPin/> {item.address}</div>{item.phone && <div className="modal-detail"><Phone/> {item.phone}</div>}<StatusLine open={item.open} close={item.close} now={now}/>{item.website && <a className="website-button" href={safeWebsite(item.website)} target="_blank" rel="noreferrer">Visit website <ArrowUpRight/></a>}<button className="primary full" onClick={onClose}>Done</button></>}</div></div>;
 }
 
 function App() {
@@ -160,6 +217,7 @@ function App() {
   const [sort, setSort] = useState('Relevance');
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState(null);
+  const [now, setNow] = useState(() => new Date());
   const perPage = 8;
   const matchesFilter = item => {
     const categoryMatch = category === 'All Categories' || category === 'More' || item.category === category;
@@ -176,8 +234,12 @@ function App() {
   const pages = Math.max(1, Math.ceil(filtered.length / perPage));
   const pageItems = filtered.slice((page - 1) * perPage, page * perPage);
   useEffect(() => setPage(1), [query, category, sort]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-  return <><Header settings={settings} onList={() => setModal({ type: 'list' })}/><SearchBar query={query} setQuery={setQuery} category={category} setCategory={setCategory} categories={categories} location={settings.location}/><main><CategoryRail categories={categories} selected={category} setSelected={setCategory}/>{error && <div className="connection-error"><b>Could not load the live directory.</b><span>{error}</span></div>}{!isSupabaseConfigured && <div className="connection-error"><b>Supabase setup is not finished.</b><span>Add the two environment variables described in the README.</span></div>}{loading ? <div className="directory-loading"><LoaderCircle className="spin"/> Loading local businesses…</div> : <>{featured.length > 0 && <section><SectionTitle note="Top businesses in our community.">Featured Local Businesses</SectionTitle><div className="featured-grid">{featured.map(item => <FeaturedCard key={item.id} item={item} onView={selected => setModal({ type: 'view', item: selected })}/>)}</div></section>}{presence.length > 0 && <section className="presence-section"><SectionTitle note="More information. More connection.">Local Presence Businesses</SectionTitle><div className="presence-grid">{presence.map(item => <PresenceCard key={item.id} item={item} onView={selected => setModal({ type: 'view', item: selected })}/>)}</div></section>}<section className="directory" id="directory"><div className="directory-head"><SectionTitle note="Approved community submissions.">All Local Businesses</SectionTitle><div className="results">Showing {filtered.length ? (page - 1) * perPage + 1 : 0}–{Math.min(page * perPage, filtered.length)} of {filtered.length} results</div><label className="sort">Sort by:<select value={sort} onChange={event => setSort(event.target.value)}><option>Relevance</option><option>A–Z</option></select><ChevronDown/></label></div>{pageItems.length ? <div className="business-grid">{pageItems.map(item => <BusinessCard key={item.id} item={item} onView={selected => setModal({ type: 'view', item: selected })}/>)}</div> : <div className="empty"><Search/><h3>No approved submissions found</h3><p>Approved businesses submitted through the listing form will appear here.</p></div>}{pages > 1 && <div className="pagination">{Array.from({ length: pages }, (_, index) => index + 1).map(number => <button key={number} className={page === number ? 'active' : ''} onClick={() => setPage(number)}>{number}</button>)}<button onClick={() => setPage(Math.min(pages, page + 1))}>Next <ChevronRight/></button></div>}</section></>}</main><VisibilityOptions settings={settings} onList={() => setModal({ type: 'list' })}/><Footer settings={settings} onList={() => setModal({ type: 'list' })}/><Modal type={modal?.type} item={modal?.item} categories={categories} onClose={() => setModal(null)}/></>;
+  return <><Header settings={settings} onList={() => setModal({ type: 'list' })}/><SearchBar query={query} setQuery={setQuery} category={category} setCategory={setCategory} categories={categories} location={settings.location}/><main><CategoryRail categories={categories} selected={category} setSelected={setCategory}/>{error && <div className="connection-error"><b>Could not load the live directory.</b><span>{error}</span></div>}{!isSupabaseConfigured && <div className="connection-error"><b>Supabase setup is not finished.</b><span>Add the two environment variables described in the README.</span></div>}{loading ? <div className="directory-loading"><LoaderCircle className="spin"/> Loading local businesses…</div> : <>{featured.length > 0 && <section><SectionTitle note="Top businesses in our community.">Featured Local Businesses</SectionTitle><div className="featured-grid">{featured.map(item => <FeaturedCard key={item.id} item={item} now={now} onView={selected => setModal({ type: 'view', item: selected })}/>)}</div></section>}{presence.length > 0 && <section className="presence-section"><SectionTitle note="More information. More connection.">Local Presence Businesses</SectionTitle><div className="presence-grid">{presence.map(item => <PresenceCard key={item.id} item={item} now={now} onView={selected => setModal({ type: 'view', item: selected })}/>)}</div></section>}<section className="directory" id="directory"><div className="directory-head"><SectionTitle note="Approved community submissions.">All Local Businesses</SectionTitle><div className="results">Showing {filtered.length ? (page - 1) * perPage + 1 : 0}–{Math.min(page * perPage, filtered.length)} of {filtered.length} results</div><label className="sort">Sort by:<select value={sort} onChange={event => setSort(event.target.value)}><option>Relevance</option><option>A–Z</option></select><ChevronDown/></label></div>{pageItems.length ? <div className="business-grid">{pageItems.map(item => <BusinessCard key={item.id} item={item} now={now} onView={selected => setModal({ type: 'view', item: selected })}/>)}</div> : <div className="empty"><Search/><h3>No approved submissions found</h3><p>Approved businesses submitted through the listing form will appear here.</p></div>}{pages > 1 && <div className="pagination">{Array.from({ length: pages }, (_, index) => index + 1).map(number => <button key={number} className={page === number ? 'active' : ''} onClick={() => setPage(number)}>{number}</button>)}<button onClick={() => setPage(Math.min(pages, page + 1))}>Next <ChevronRight/></button></div>}</section></>}</main><VisibilityOptions settings={settings} onList={() => setModal({ type: 'list' })}/><Footer settings={settings} onList={() => setModal({ type: 'list' })}/><Modal type={modal?.type} item={modal?.item} categories={categories} now={now} onClose={() => setModal(null)}/></>;
 }
 
 function RootRouter() {
