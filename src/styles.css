@@ -22,7 +22,7 @@
 
 /* Editable branding */
 .brand.has-logo{display:grid;grid-template-columns:1fr;letter-spacing:0;align-items:start}
-.brand.has-logo img{display:block;max-width:290px;max-height:92px;object-fit:contain;object-position:left center}
+.brand.has-logo img{display:block;max-width:334px;max-height:106px;object-fit:contain;object-position:left center}
 .brand.has-logo small{grid-column:1;margin-top:8px}
 .footer-bottom .brand.has-logo img{max-width:190px;max-height:55px;filter:brightness(0) invert(1)}
 .together{white-space:pre-line}
@@ -59,4 +59,4 @@
 .forgot-button{color:var(--blue);font-size:12px;font-weight:700;padding:5px;text-align:center}.forgot-button:disabled{opacity:.6}
 
 @media(max-width:850px){.visibility-grid{grid-template-columns:1fr}.visibility-card{min-height:270px}}
-@media(max-width:700px){.brand.has-logo img{max-width:230px;max-height:75px}.visibility-options{padding:36px 20px}.visibility-heading h2{font-size:28px}.visibility-heading p{font-size:14px}.visibility-card{min-height:0}.admin-tabs{overflow-x:auto}.admin-tabs button{white-space:nowrap}}
+@media(max-width:700px){.brand.has-logo img{max-width:265px;max-height:86px}.visibility-options{padding:36px 20px}.visibility-heading h2{font-size:28px}.visibility-heading p{font-size:14px}.visibility-card{min-height:0}.admin-tabs{overflow-x:auto}.admin-tabs button{white-space:nowrap}}
