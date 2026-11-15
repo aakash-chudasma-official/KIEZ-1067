@@ -21,8 +21,32 @@ const defaultSettings = {
   footer_title: 'Local businesses build stronger communities.'
 };
 
+function cleanText(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function slugify(value) {
-  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function friendlySaveError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  if (error?.code === '42501' || message.includes('row-level security') || message.includes('permission')) {
+    return 'Your account does not have permission to update this business. Please contact the directory administrator.';
+  }
+  if (error?.code === '23505' || message.includes('duplicate')) {
+    return 'A business with these details already exists. Please check the business name and try again.';
+  }
+  if (message.includes('failed to fetch') || message.includes('network')) {
+    return 'We could not connect to the server. Please check your internet connection and try again.';
+  }
+  if (message.includes('category')) {
+    return 'Please select a valid business category and try again.';
+  }
+  if (message.includes('business name') || message.includes('name is required')) {
+    return 'Please enter the business name before saving.';
+  }
+  return 'We could not save this business. Please check the details and try again.';
 }
 
 function Login({ onLogin }) {
@@ -107,9 +131,22 @@ function BusinessForm({ categories, editing, onSaved, onCancel }) {
 
   useEffect(() => {
     setForm(editing ? {
-      ...emptyBusiness, ...editing,
-      services: (editing.services || []).join(', '),
-      close_time: editing.opening_hours?.close || ''
+      ...emptyBusiness,
+      ...editing,
+      name: editing.name ?? '',
+      category_id: editing.category_id ?? categories[0]?.id ?? '',
+      tagline: editing.tagline ?? '',
+      description: editing.description ?? '',
+      address: editing.address ?? '',
+      city: editing.city ?? '',
+      state: editing.state ?? '',
+      phone: editing.phone ?? '',
+      website: editing.website ?? '',
+      services: Array.isArray(editing.services)
+        ? editing.services.join(', ')
+        : (editing.services ?? ''),
+      close_time: editing.opening_hours?.close ?? '',
+      image_url: editing.image_url ?? ''
     } : { ...emptyBusiness, category_id: categories[0]?.id || '' });
     setImage(null); setError('');
   }, [editing, categories]);
@@ -132,23 +169,41 @@ function BusinessForm({ categories, editing, onSaved, onCancel }) {
     setBusy(true); setError('');
     try {
       const imageUrl = await uploadImage();
+      const businessName = cleanText(form.name);
+      const categoryId = Number(form.category_id);
+      const closeTime = cleanText(form.close_time);
+
+      if (!businessName) throw new Error('Business name is required.');
+      if (!Number.isFinite(categoryId)) throw new Error('Category is required.');
+
       const payload = {
-        name: form.name.trim(), slug: slugify(form.name), category_id: Number(form.category_id),
-        tagline: form.tagline.trim() || null, description: form.description.trim() || null,
-        address: form.address.trim() || null, city: form.city.trim() || null, state: form.state.trim() || null,
-        phone: form.phone.trim() || null, website: form.website.trim() || null, image_url: imageUrl,
-        services: form.services.split(',').map(value => value.trim()).filter(Boolean),
-        opening_hours: form.close_time.trim() ? { close: form.close_time.trim() } : {},
-        is_featured: form.is_featured, is_local_presence: form.is_local_presence, status: form.status
+        name: businessName,
+        slug: slugify(businessName),
+        category_id: categoryId,
+        tagline: cleanText(form.tagline) || null,
+        description: cleanText(form.description) || null,
+        address: cleanText(form.address) || null,
+        city: cleanText(form.city) || null,
+        state: cleanText(form.state) || null,
+        phone: cleanText(form.phone) || null,
+        website: cleanText(form.website) || null,
+        image_url: imageUrl,
+        services: cleanText(form.services).split(',').map(value => value.trim()).filter(Boolean),
+        opening_hours: closeTime ? { close: closeTime } : {},
+        is_featured: Boolean(form.is_featured),
+        is_local_presence: Boolean(form.is_local_presence),
+        status: form.status || 'pending'
       };
       const query = form.id
         ? supabase.from('businesses').update(payload).eq('id', form.id)
         : supabase.from('businesses').insert(payload);
-      const { error: saveError } = await query;
+      const { data: savedBusiness, error: saveError } = await query.select('id').single();
       if (saveError) throw saveError;
+      if (!savedBusiness) throw new Error('The business was not saved.');
       onSaved();
     } catch (saveError) {
-      setError(saveError.message || 'Could not save the business.');
+      console.error('Business save failed:', saveError);
+      setError(friendlySaveError(saveError));
     } finally { setBusy(false); }
   }
 
