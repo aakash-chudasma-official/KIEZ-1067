@@ -247,7 +247,7 @@ function BusinessForm({ categories, editing, onSaved, onCancel }) {
       <label className="wide">Services <small>(separate with commas)</small><input value={form.services} onChange={e => set('services', e.target.value)}/></label>
       <label>Opening time<input type="time" value={form.open_time} onChange={e => set('open_time', e.target.value)}/></label>
       <label>Closing time<input type="time" value={form.close_time} onChange={e => set('close_time', e.target.value)}/></label>
-      <label className="upload-label"><ImageUp/> Business image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => setImage(e.target.files?.[0] || null)}/><span>{image?.name || (form.image_url ? 'Current image saved' : 'Choose an image')}</span></label>
+      <label className="upload-label"><ImageUp/> Business image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => setImage(e.target.files?.[0] || null)}/><span>{image?.name || (form.image_url ? 'Current image saved' : 'Choose an image')}</span><small className="image-guidance">Recommended: 1200 × 900 px (4:3). Keep important details centred.</small></label>
     </div>
     <div className="check-row"><label><input type="checkbox" checked={form.is_featured} onChange={e => set('is_featured', e.target.checked)}/> Featured business</label><label><input type="checkbox" checked={form.is_local_presence} onChange={e => set('is_local_presence', e.target.checked)}/> Local presence</label></div>
     {error && <p className="form-error">{error}</p>}
